@@ -175,13 +175,6 @@ const Settings = () => {
                       </div>
                       <Switch defaultChecked />
                     </div>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <Label>Analytics</Label>
-                        <p className="text-sm text-muted-foreground">Track usage analytics</p>
-                      </div>
-                      <Switch defaultChecked />
-                    </div>
                   </CardContent>
                 </Card>
               </div>

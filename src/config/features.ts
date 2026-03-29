@@ -5,7 +5,6 @@ export type FeatureKey =
   | "staffHr"
   | "attendance"
   | "crm"
-  | "analytics"
   | "multiBranch"
 
 export type FeatureConfig = {
@@ -54,15 +53,6 @@ export const featureConfigs: Record<FeatureKey, FeatureConfig> = {
     upgradeMessage: "Unlock CRM to run campaigns and build loyalty with your best customers.",
     recommendedPlan: "Growth",
     priceHint: "Included from Growth plan upwards.",
-    isEnabled: false,
-  },
-  analytics: {
-    key: "analytics",
-    label: "Analytics",
-    description: "See sales, category performance, peak hours and forecasts in one dashboard.",
-    upgradeMessage: "Upgrade to access advanced analytics and make data-driven decisions.",
-    recommendedPlan: "Pro",
-    priceHint: "Advanced reporting available on Pro.",
     isEnabled: false,
   },
   multiBranch: {

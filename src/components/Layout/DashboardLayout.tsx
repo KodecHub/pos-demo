@@ -10,7 +10,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const location = useLocation();
 
   useEffect(() => {
-    const lockedPaths = ["/qr-menu", "/staff", "/attendance", "/crm", "/analytics", "/branches"];
+    const lockedPaths = ["/qr-menu", "/staff", "/attendance", "/crm", "/branches"];
     if (!lockedPaths.includes(location.pathname)) {
       sessionStorage.setItem("lastUnlockedRoute", location.pathname || "/");
     }

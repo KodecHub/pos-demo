@@ -194,7 +194,7 @@ const MultiBranch = () => {
                       </Button>
                       <Button size="sm" variant="outline" className="flex-1">
                         <TrendingUp className="w-3 h-3 mr-1" />
-                        Analytics
+                        Performance
                       </Button>
                     </div>
                   </div>

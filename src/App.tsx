@@ -11,7 +11,6 @@ import Staff from "./pages/Staff";
 import Attendance from "./pages/Attendance";
 import Accounting from "./pages/Accounting";
 import CRM from "./pages/CRM";
-import Analytics from "./pages/Analytics";
 import MultiBranch from "./pages/MultiBranch";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
@@ -39,7 +38,6 @@ const App = () => (
           <Route path="/attendance" element={<Attendance />} />
           <Route path="/accounting" element={<Accounting />} />
           <Route path="/crm" element={<CRM />} />
-          <Route path="/analytics" element={<Analytics />} />
           <Route path="/branches" element={<MultiBranch />} />
           <Route path="/settings" element={<Settings />} />
 

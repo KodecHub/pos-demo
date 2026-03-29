@@ -8,7 +8,6 @@ import {
   Calendar,
   DollarSign,
   UserCircle,
-  BarChart3,
   Settings,
   Store,
   UtensilsCrossed,
@@ -37,7 +36,6 @@ const menuItems: MenuItem[] = [
   { icon: Calendar, label: "Attendance", path: "/attendance", badge: null, featureKey: "attendance" },
   { icon: DollarSign, label: "Accounting", path: "/accounting", badge: null },
   { icon: UserCircle, label: "CRM", path: "/crm", badge: null, featureKey: "crm" },
-  { icon: BarChart3, label: "Analytics", path: "/analytics", badge: "New", featureKey: "analytics" },
   { icon: Store, label: "Multi-Branch", path: "/branches", badge: null, featureKey: "multiBranch" },
   { icon: Settings, label: "Settings", path: "/settings", badge: null },
 ];
