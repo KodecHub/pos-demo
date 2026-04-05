@@ -24,7 +24,7 @@ import {
 } from "@/lib/invoicesApi";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { generatePDF } from "@/lib/pdfUtils";
+import { generatePDF, generateCustomerInvoicePdf } from "@/lib/pdfUtils";
 import { StatCard } from "@/components/Dashboard/StatCard";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/utils";
 import { toast } from "sonner";
@@ -43,24 +43,10 @@ const Accounting = () => {
   const [customerInvoices, setCustomerInvoices] = useState<CustomerInvoice[]>([]);
   const [invCustomer, setInvCustomer] = useState("");
   const [invLines, setInvLines] = useState<InvLineDraft[]>([{ ...DEFAULT_NEW_LINE, unitPrice: "650" }]);
-  const [pdfTarget, setPdfTarget] = useState<CustomerInvoice | null>(null);
 
   useEffect(() => {
     void getAllInvoices().then(setCustomerInvoices);
   }, []);
-
-  useEffect(() => {
-    if (!pdfTarget) return;
-    const t = window.setTimeout(async () => {
-      try {
-        await generatePDF("customer-invoice-slip", `${pdfTarget.invoiceId}.pdf`);
-      } catch (e) {
-        console.error(e);
-      }
-      setPdfTarget(null);
-    }, 200);
-    return () => window.clearTimeout(t);
-  }, [pdfTarget]);
 
   const handleCreateCustomerInvoice = async () => {
     if (!invCustomer.trim()) {
@@ -92,7 +78,12 @@ const Accounting = () => {
       setInvCustomer("");
       setInvLines([{ ...DEFAULT_NEW_LINE, unitPrice: "650" }]);
       toast.success("Invoice created.");
-      setPdfTarget(created);
+      try {
+        generateCustomerInvoicePdf(created);
+      } catch (e) {
+        console.error(e);
+        toast.error("Invoice saved but PDF failed to download.");
+      }
     } catch (e) {
       console.error(e);
       toast.error(e instanceof Error ? e.message : "Could not create invoice.");
@@ -138,7 +129,12 @@ const Accounting = () => {
   };
 
   const handleDownloadInvoice = (inv: CustomerInvoice) => {
-    setPdfTarget(inv);
+    try {
+      generateCustomerInvoicePdf(inv);
+    } catch (e) {
+      console.error(e);
+      toast.error("Could not download PDF.");
+    }
   };
 
   const [recentTransactions, setRecentTransactions] = useState([
@@ -549,51 +545,6 @@ const Accounting = () => {
             </Table>
           </CardContent>
         </Card>
-
-        {pdfTarget && (
-          <div
-            id="customer-invoice-slip"
-            className="fixed w-[400px] bg-white p-8 text-black border shadow-lg"
-            style={{ left: -8000, top: 0, zIndex: 9999 }}
-          >
-            <h2 className="text-xl font-bold mb-1">Invoice</h2>
-            <p className="text-sm text-gray-600 mb-4">{pdfTarget.invoiceId}</p>
-            <div className="text-sm space-y-1 mb-4">
-              <p>
-                <strong>Customer:</strong> {pdfTarget.customerName}
-              </p>
-              <table className="w-full text-xs border-collapse border border-gray-300 mt-2 mb-2">
-                <thead>
-                  <tr className="bg-gray-100">
-                    <th className="border border-gray-300 p-1 text-left">Description</th>
-                    <th className="border border-gray-300 p-1 text-right">Qty</th>
-                    <th className="border border-gray-300 p-1 text-right">Unit</th>
-                    <th className="border border-gray-300 p-1 text-right">Line total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pdfTarget.lines.map((l, i) => (
-                    <tr key={i}>
-                      <td className="border border-gray-300 p-1">{l.description}</td>
-                      <td className="border border-gray-300 p-1 text-right">{l.qty}</td>
-                      <td className="border border-gray-300 p-1 text-right">{formatCurrency(l.unitPrice)}</td>
-                      <td className="border border-gray-300 p-1 text-right">{formatCurrency(l.lineTotal)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <p>
-                <strong>Total:</strong> {formatCurrency(pdfTarget.total)}
-              </p>
-              <p>
-                <strong>Status:</strong> {pdfTarget.status}
-              </p>
-              <p>
-                <strong>Date:</strong> {new Date(pdfTarget.createdAt).toLocaleString()}
-              </p>
-            </div>
-          </div>
-        )}
 
         <Card>
           <CardHeader>
