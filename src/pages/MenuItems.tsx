@@ -271,8 +271,8 @@ const MenuItems = () => {
         nameSinhala: isShowcase ? null : newItem.nameSinhala.trim() || null,
         description: newItem.description.trim(),
         costPrice,
-        sellingPrice:
-          !isShowcase && newItem.hasPortionPricing && portionPrices.MEDIUM != null ? portionPrices.MEDIUM : basePrice,
+        /** Always the small/default POS price; M/L live in portionPrices only. */
+        sellingPrice: basePrice,
         imageUrl,
         isAvailable: true,
 

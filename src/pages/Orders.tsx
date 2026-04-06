@@ -37,7 +37,8 @@ import {
   patchOrderItem,
   type PortionType,
 } from "@/lib/orderItemsApi"
-import { SinhalaReceiptDialog, type OrderBillsPayload } from "@/components/POS/SinhalaReceiptDialog"
+import { SinhalaReceiptDialog } from "@/components/POS/SinhalaReceiptDialog"
+import { type OrderBillsPayload } from "@/components/POS/receiptPrint"
 
 const statusLabels: Record<OrderStatus, string> = {
   NEW: "Pending",
@@ -80,13 +81,6 @@ function mergeOrderResponseIntoUi(existing: UiOrder, fromApi: OrderResponseDto):
   return { ...existing, ...rest }
 }
 
-const paymentLabels: Record<PaymentMethod, string> = {
-  CASH: "Cash",
-  CARD: "Card",
-  BANK_TRANSFER: "Bank transfer",
-  CASH_ON_DELIVERY: "Cash on delivery",
-}
-
 const orderTypeLabels: Record<OrderType, string> = {
   DINE_IN: "Dine in",
   TAKE_AWAY: "Take away",
@@ -99,7 +93,7 @@ function portionLabelForBill(p: PortionType | null | undefined): string | undefi
   return undefined
 }
 
-function buildOrderBillPayload(order: UiOrder): OrderBillsPayload {
+function buildOrderBillPayload(order: UiOrder, paymentLabel = ""): OrderBillsPayload {
   const subtotal = order.items.reduce((s, i) => s + i.subtotal, 0)
   const lines = order.items.map((i) => ({
     name: i.name,
@@ -118,7 +112,7 @@ function buildOrderBillPayload(order: UiOrder): OrderBillsPayload {
       taxAmount: order.taxAmount,
       total: order.totalAmount,
       tableLabel,
-      paymentLabel: paymentLabels[normalizePaymentMethod(order.paymentMethod)],
+      paymentLabel,
       orderTypeLabel: orderTypeLabels[order.orderType],
     },
     kitchenTickets: [],
@@ -162,6 +156,8 @@ export default function Orders() {
   const [isDeleting, setIsDeleting] = useState(false)
   const [paidBillOpen, setPaidBillOpen] = useState(false)
   const [paidBillPayload, setPaidBillPayload] = useState<OrderBillsPayload | null>(null)
+  /** Dine-in: Mark as Paid allowed only after modal “Print customer bill” for this order. */
+  const [dineInBillPrintedIds, setDineInBillPrintedIds] = useState<Set<number>>(() => new Set())
 
   const refresh = async () => {
     setIsLoading(true)
@@ -210,14 +206,21 @@ export default function Orders() {
     }
   }
 
+  const handleRefreshClick = () => {
+    setSearch("")
+    void refresh()
+  }
+
   useEffect(() => {
     refresh()
   }, [])
 
   const filteredBySearch = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    if (!q) return orders
-    return orders.filter((o) => String(o.orderId).toLowerCase().includes(q) || String(o.tableNumber).toLowerCase().includes(q))
+    const raw = search.trim()
+    if (!raw) return orders
+    if (!/^\d+$/.test(raw)) return []
+    const id = Number.parseInt(raw, 10)
+    return orders.filter((o) => o.orderId === id)
   }, [orders, search])
 
   const byStatus = (status: OrderStatus) => filteredBySearch.filter((o) => o.status === status)
@@ -234,8 +237,17 @@ export default function Orders() {
         prev.map((o) => (o.orderId === updated.orderId ? mergeOrderResponseIntoUi(o, updated) : o)),
       )
       if (status === "PAID") {
-        setPaidBillPayload(buildOrderBillPayload(merged))
-        setPaidBillOpen(true)
+        if (merged.orderType === "DINE_IN") {
+          setDineInBillPrintedIds((prev) => {
+            const next = new Set(prev)
+            next.delete(merged.orderId)
+            return next
+          })
+          toast.success("Marked as paid.")
+        } else {
+          setPaidBillPayload(buildOrderBillPayload(merged))
+          setPaidBillOpen(true)
+        }
       }
     } catch (e) {
       console.error(e)
@@ -243,9 +255,22 @@ export default function Orders() {
     }
   }
 
+  const handlePrintDineInCustomerBill = (order: UiOrder) => {
+    if (order.orderType !== "DINE_IN") return
+    if (order.status === "PAID" || order.status === "CANCELLED") return
+    const payload = buildOrderBillPayload(order, "Pending payment")
+    setPaidBillPayload(payload)
+    setPaidBillOpen(true)
+  }
+
   const handleDelete = async (orderId: number) => {
     try {
       await deleteOrder(orderId)
+      setDineInBillPrintedIds((prev) => {
+        const next = new Set(prev)
+        next.delete(orderId)
+        return next
+      })
       setOrders((prev) => prev.filter((o) => o.orderId !== orderId))
       setDeleteOrderId(null)
       setDeleteAuthUsername("")
@@ -296,14 +321,14 @@ export default function Orders() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <input
                   type="text"
-                  placeholder="Search by order ID or table..."
+                  placeholder="Order ID"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="pl-9 pr-4 py-2 rounded-xl border border-border bg-background text-sm w-64 focus:outline-none focus:ring-2 focus:ring-primary/20"
                 />
               </div>
 
-              <Button variant="outline" onClick={refresh} disabled={isLoading}>
+              <Button variant="outline" onClick={handleRefreshClick} disabled={isLoading}>
                 {isLoading ? "Loading..." : "Refresh"}
               </Button>
             </div>
@@ -328,16 +353,44 @@ export default function Orders() {
             </TabsList>
 
             <TabsContent value="all" className="mt-0">
-              <OrderList orders={filteredBySearch} onEdit={setEditingOrder} onDelete={setDeleteOrderId} onStatusChange={handleStatusChange} />
+              <OrderList
+                orders={filteredBySearch}
+                onEdit={setEditingOrder}
+                onDelete={setDeleteOrderId}
+                onStatusChange={handleStatusChange}
+                onPrintDineInBill={handlePrintDineInCustomerBill}
+                dineInBillPrintedIds={dineInBillPrintedIds}
+              />
             </TabsContent>
             <TabsContent value="new" className="mt-0">
-              <OrderList orders={newOrders} onEdit={setEditingOrder} onDelete={setDeleteOrderId} onStatusChange={handleStatusChange} />
+              <OrderList
+                orders={newOrders}
+                onEdit={setEditingOrder}
+                onDelete={setDeleteOrderId}
+                onStatusChange={handleStatusChange}
+                onPrintDineInBill={handlePrintDineInCustomerBill}
+                dineInBillPrintedIds={dineInBillPrintedIds}
+              />
             </TabsContent>
             <TabsContent value="paid" className="mt-0">
-              <OrderList orders={paidOrders} onEdit={setEditingOrder} onDelete={setDeleteOrderId} onStatusChange={handleStatusChange} />
+              <OrderList
+                orders={paidOrders}
+                onEdit={setEditingOrder}
+                onDelete={setDeleteOrderId}
+                onStatusChange={handleStatusChange}
+                onPrintDineInBill={handlePrintDineInCustomerBill}
+                dineInBillPrintedIds={dineInBillPrintedIds}
+              />
             </TabsContent>
             <TabsContent value="cancelled" className="mt-0">
-              <OrderList orders={cancelledOrders} onEdit={setEditingOrder} onDelete={setDeleteOrderId} onStatusChange={handleStatusChange} />
+              <OrderList
+                orders={cancelledOrders}
+                onEdit={setEditingOrder}
+                onDelete={setDeleteOrderId}
+                onStatusChange={handleStatusChange}
+                onPrintDineInBill={handlePrintDineInCustomerBill}
+                dineInBillPrintedIds={dineInBillPrintedIds}
+              />
             </TabsContent>
           </Tabs>
         </div>
@@ -358,6 +411,9 @@ export default function Orders() {
             if (!v) setPaidBillPayload(null)
           }}
           payload={paidBillPayload}
+          onPendingDineInBillPrinted={(orderId) => {
+            setDineInBillPrintedIds((prev) => new Set(prev).add(orderId))
+          }}
         />
 
         <Dialog
@@ -422,11 +478,15 @@ function OrderList({
   onStatusChange,
   onEdit,
   onDelete,
+  onPrintDineInBill,
+  dineInBillPrintedIds,
 }: {
   orders: UiOrder[]
   onStatusChange: (order: UiOrder, status: OrderStatus) => void
   onEdit: (order: UiOrder) => void
   onDelete: (orderId: number) => void
+  onPrintDineInBill: (order: UiOrder) => void
+  dineInBillPrintedIds: ReadonlySet<number>
 }) {
   if (orders.length === 0) {
     return (
@@ -448,6 +508,8 @@ function OrderList({
           onStatusChange={(status) => onStatusChange(order, status)}
           onEdit={() => onEdit(order)}
           onDelete={() => onDelete(order.orderId)}
+          onPrintDineInBill={() => onPrintDineInBill(order)}
+          dineInBillPrinted={dineInBillPrintedIds.has(order.orderId)}
         />
       ))}
     </div>
@@ -459,13 +521,20 @@ function OrderCard({
   onStatusChange,
   onEdit,
   onDelete,
+  onPrintDineInBill,
+  dineInBillPrinted,
 }: {
   order: UiOrder
   onStatusChange: (status: OrderStatus) => void
   onEdit: () => void
   onDelete: () => void
+  onPrintDineInBill: () => void
+  dineInBillPrinted: boolean
 }) {
   const canChangeStatus = order.status !== "PAID" && order.status !== "CANCELLED"
+  const showDineInPrintBill = order.orderType === "DINE_IN" && canChangeStatus
+  const markPaidDisabled =
+    canChangeStatus && order.orderType === "DINE_IN" && !dineInBillPrinted
   const StatusIcon = statusIcons[order.status]
 
   return (
@@ -521,13 +590,26 @@ function OrderCard({
           <span className="font-bold text-primary">{formatCurrency(order.totalAmount)}</span>
         </div>
 
+        {showDineInPrintBill ? (
+          <Button type="button" size="sm" variant="outline" className="mt-3 w-full" onClick={onPrintDineInBill}>
+            Print customer bill
+          </Button>
+        ) : null}
+
         {canChangeStatus && (
-          <div className="mt-3 flex gap-2">
-            <Button size="sm" className="flex-1" onClick={() => onStatusChange("PAID")}>
+          <div className="mt-3">
+            <Button
+              size="sm"
+              className="w-full"
+              disabled={markPaidDisabled}
+              title={
+                markPaidDisabled
+                  ? "Print the customer bill from the preview first, then you can mark as paid."
+                  : undefined
+              }
+              onClick={() => onStatusChange("PAID")}
+            >
               Mark as Paid
-            </Button>
-            <Button size="sm" variant="destructive" onClick={() => onStatusChange("CANCELLED")}>
-              Cancel
             </Button>
           </div>
         )}
@@ -579,7 +661,6 @@ function EditOrderDialog({
   onShowPaidBill?: (payload: OrderBillsPayload) => void
 }) {
   const [tableNumber, setTableNumber] = useState<string>("")
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH")
   const [status, setStatus] = useState<OrderStatus>("NEW")
   const [saving, setSaving] = useState(false)
   const [draftLines, setDraftLines] = useState<DraftLine[]>([])
@@ -589,7 +670,6 @@ function EditOrderDialog({
   useEffect(() => {
     if (!order) return
     setTableNumber(order.tableNumber == null ? "" : String(order.tableNumber))
-    setPaymentMethod(normalizePaymentMethod(order.paymentMethod))
     setStatus(normalizeOrderStatus(order.status))
     setDeletedOrderItemIds([])
     setDraftLines(
@@ -742,14 +822,13 @@ function EditOrderDialog({
 
       await patchOrder(order.orderId, {
         tableNumber: isDineIn ? parsedTable : null,
-        paymentMethod,
         status,
         totalAmount,
         taxAmount: 0,
         discountAmount: order.discountAmount ?? 0,
       })
 
-      if (status === "PAID") {
+      if (status === "PAID" && !isDineIn) {
         const billLines = draftLines.map((l) => ({
           name: l.name,
           qty: l.quantity,
@@ -765,7 +844,7 @@ function EditOrderDialog({
             taxAmount: 0,
             total: totalAmount,
             tableLabel: isDineIn && parsedTable ? String(parsedTable) : "—",
-            paymentLabel: paymentLabels[paymentMethod],
+            paymentLabel: "",
             orderTypeLabel: orderTypeLabels[order.orderType],
           },
           kitchenTickets: [],
@@ -805,20 +884,6 @@ function EditOrderDialog({
               disabled={!isDineIn}
               placeholder={isDineIn ? "Enter table number" : "Not applicable"}
             />
-          </div>
-
-          <div className="grid gap-2">
-            <Label>Payment Method</Label>
-            <select
-              className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
-              value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-            >
-              <option value="CASH">CASH</option>
-              <option value="CARD">CARD</option>
-              <option value="BANK_TRANSFER">BANK_TRANSFER</option>
-              <option value="CASH_ON_DELIVERY">CASH_ON_DELIVERY</option>
-            </select>
           </div>
 
           <div className="grid gap-2">

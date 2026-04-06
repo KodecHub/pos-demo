@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { useLocation } from "react-router-dom"
 import { DashboardLayout } from "@/components/Layout/DashboardLayout"
 import { StatCard } from "@/components/Dashboard/StatCard"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -55,6 +56,7 @@ type LowStockRow = {
 }
 
 const Dashboard = () => {
+  const location = useLocation()
   const [orders, setOrders] = useState<OrderResponseDto[]>([])
   const [orderItems, setOrderItems] = useState<OrderItemResponseDto[]>([])
   const [products, setProducts] = useState<ProductResponseDto[]>([])
@@ -62,6 +64,8 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    if (location.pathname !== "/dashboard") return
+
     let cancelled = false
 
     ;(async () => {
@@ -88,7 +92,7 @@ const Dashboard = () => {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [location.pathname])
 
   const productById = useMemo(() => {
     const m = new Map<number, ProductResponseDto>()

@@ -5,6 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
@@ -26,12 +33,21 @@ import {
   Upload,
   Download,
   LogOut,
+  Printer,
 } from "lucide-react"
+import { toast } from "sonner"
+import {
+  loadPrintPrinterConfig,
+  savePrintPrinterConfig,
+  type PrintBackend,
+  type PrintPrinterConfig,
+} from "@/lib/printConfig"
 
 const Settings = () => {
   const navigate = useNavigate()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [showLogoutDialog, setShowLogoutDialog] = useState(false)
+  const [printCfg, setPrintCfg] = useState<PrintPrinterConfig>(() => loadPrintPrinterConfig())
 
   const handleLogout = async () => {
     setIsLoggingOut(true)
@@ -161,6 +177,106 @@ const Settings = () => {
                       </div>
                       <Switch defaultChecked />
                     </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="modern-card shadow-modern-lg border-0 lg:col-span-2">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Printer className="w-5 h-5 text-primary" />
+                      Receipt printers (80mm thermal)
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground font-normal">
+                      For <span className="font-medium text-foreground">network / thermal printers</span> without the
+                      Chrome print dialog, use <span className="font-medium text-foreground">QZ Tray</span> (install on
+                      this PC, add printers in Windows) or run the optional{" "}
+                      <span className="font-medium text-foreground">print-agent</span> service and choose HTTP below.
+                      Printer names must match Windows exactly (Control Panel → Printers).
+                    </p>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="max-w-md space-y-2">
+                      <Label htmlFor="print-backend">Print method</Label>
+                      <Select
+                        value={printCfg.printBackend}
+                        onValueChange={(v) => setPrintCfg((p) => ({ ...p, printBackend: v as PrintBackend }))}
+                      >
+                        <SelectTrigger id="print-backend" className="mt-1">
+                          <SelectValue placeholder="Choose method" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="browser">Browser print dialog (Chrome / Edge)</SelectItem>
+                          <SelectItem value="qz">QZ Tray — silent to named printers</SelectItem>
+                          <SelectItem value="http">Local print agent (HTTP)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {printCfg.printBackend === "qz" ? (
+                        <p className="text-xs text-muted-foreground">
+                          Download QZ Tray from qz.io, install, then approve this site when prompted. Use the exact
+                          printer name from Windows for each slot below.
+                        </p>
+                      ) : null}
+                      {printCfg.printBackend === "http" ? (
+                        <p className="text-xs text-muted-foreground">
+                          Run <code className="text-foreground">npm install</code> and{" "}
+                          <code className="text-foreground">npm start</code> in the <code className="text-foreground">print-agent</code>{" "}
+                          folder (Windows). Set the agent URL below (e.g. http://127.0.0.1:9101).
+                        </p>
+                      ) : null}
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <Label htmlFor="print-customer">Customer bill printer</Label>
+                        <Input
+                          id="print-customer"
+                          value={printCfg.customerPrinterName}
+                          onChange={(e) => setPrintCfg((p) => ({ ...p, customerPrinterName: e.target.value }))}
+                          placeholder="e.g. EPSON TM-T20III Receipt"
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="print-k1">Kitchen 1 printer</Label>
+                        <Input
+                          id="print-k1"
+                          value={printCfg.kitchen1PrinterName}
+                          onChange={(e) => setPrintCfg((p) => ({ ...p, kitchen1PrinterName: e.target.value }))}
+                          placeholder="Kitchen 1 station"
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="print-k2">Kitchen 2 printer</Label>
+                        <Input
+                          id="print-k2"
+                          value={printCfg.kitchen2PrinterName}
+                          onChange={(e) => setPrintCfg((p) => ({ ...p, kitchen2PrinterName: e.target.value }))}
+                          placeholder="Kitchen 2 station"
+                          className="mt-1"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label htmlFor="print-agent">Print agent URL (HTTP mode only)</Label>
+                      <Input
+                        id="print-agent"
+                        value={printCfg.printAgentUrl}
+                        onChange={(e) => setPrintCfg((p) => ({ ...p, printAgentUrl: e.target.value }))}
+                        placeholder="http://127.0.0.1:9101"
+                        className="mt-1 max-w-xl"
+                        disabled={printCfg.printBackend !== "http"}
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => {
+                        savePrintPrinterConfig(printCfg)
+                        toast.success("Printer settings saved")
+                      }}
+                    >
+                      Save printer names
+                    </Button>
                   </CardContent>
                 </Card>
               </div>

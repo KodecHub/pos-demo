@@ -5,6 +5,7 @@ import { DashboardLayout } from "@/components/Layout/DashboardLayout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Plus, Minus, Trash2, CreditCard, Search, ChefHat } from "lucide-react"
@@ -19,22 +20,14 @@ import {
   type OrderResponseDto,
   type OrderStatus,
   type OrderType,
-  type PaymentMethod,
 } from "@/lib/ordersApi"
 import { createOrderItem, deleteOrderItem, getAllOrderItems } from "@/lib/orderItemsApi"
+import { SinhalaReceiptDialog } from "@/components/POS/SinhalaReceiptDialog"
 import {
-  SinhalaReceiptDialog,
-  printKitchenTicketsOnly,
+  printKitchenTicketsForStationsSequentially,
   type KitchenTicketPayload,
   type OrderBillsPayload,
-} from "@/components/POS/SinhalaReceiptDialog"
-
-const paymentLabels: Record<PaymentMethod, string> = {
-  CASH: "Cash",
-  CARD: "Card",
-  BANK_TRANSFER: "Bank transfer",
-  CASH_ON_DELIVERY: "Cash on delivery",
-}
+} from "@/components/POS/receiptPrint"
 
 const orderTypeLabels: Record<OrderType, string> = {
   DINE_IN: "Dine in",
@@ -58,15 +51,20 @@ interface CartItem {
   unitPrice: number
   quantity: number
   portionSize?: PortionSize
+  /** True when menu item has M/L prices; unset portionSize = small (sellingPrice) */
+  hasPortionPricing?: boolean
   imageUrl?: string
   description?: string
   /** Drinks/showcase: bill only, omit from printed KOTs */
   skipKitchenTicket?: boolean
+  /** KOT only — prints on this item’s kitchen ticket, not customer bill */
+  lineNote?: string
 }
 
-function portionLabelSi(p?: PortionSize): string | undefined {
-  if (p === "MEDIUM") return "මධ්‍යම"
-  if (p === "LARGE") return "විශාල"
+function kotPortionSi(c: CartItem): string | undefined {
+  if (c.portionSize === "MEDIUM") return "මධ්‍යම"
+  if (c.portionSize === "LARGE") return "විශාල"
+  if (c.hasPortionPricing) return "කුඩා"
   return undefined
 }
 
@@ -75,51 +73,55 @@ function buildKitchenTickets(
   orderId: number,
   tableLabel: string,
   orderType: OrderType,
-  /** Note text only appears on that station’s KOT (not on the other kitchen’s ticket). */
-  notesByKitchen: Partial<Record<Kitchen, string>>,
 ): KitchenTicketPayload[] {
   const map = new Map<Kitchen, KitchenTicketPayload["lines"]>()
   for (const c of cart) {
     if (c.skipKitchenTicket) continue
     const list = map.get(c.kitchen) ?? []
+    const rawNote = c.lineNote?.trim()
     list.push({
       nameEn: c.name,
       nameSi: c.nameSinhala,
       qty: c.quantity,
-      portionSi: portionLabelSi(c.portionSize),
+      portionSi: kotPortionSi(c),
+      lineNote: rawNote && rawNote.length > 0 ? rawNote : null,
     })
     map.set(c.kitchen, list)
   }
   const stationOrder: Kitchen[] = ["KITCHEN_1", "KITCHEN_2"]
   return stationOrder
     .filter((k) => (map.get(k)?.length ?? 0) > 0)
-    .map((k) => {
-      const raw = notesByKitchen[k]
-      const kitchenNote = typeof raw === "string" && raw.trim().length > 0 ? raw.trim() : null
-      return {
-        kitchen: k,
-        kitchenBadgeSi: k === "KITCHEN_1" ? "කුස්සිය 1" : "කුස්සිය 2",
-        orderId,
-        tableLabel,
-        orderTypeLabelSi: orderTypeLabelSi[orderType],
-        kitchenNote,
-        lines: map.get(k)!,
-      }
-    })
+    .map((k) => ({
+      kitchen: k,
+      kitchenBadgeSi: k === "KITCHEN_1" ? "කුස්සිය 1" : "කුස්සිය 2",
+      orderId,
+      tableLabel,
+      orderTypeLabelSi: orderTypeLabelSi[orderType],
+      kitchenNote: null,
+      lines: map.get(k)!,
+    }))
 }
 
-const cartKey = (productId: number, portionSize?: PortionSize) => `${productId}:${portionSize ?? "DEFAULT"}`
+const cartKey = (productId: number, portionSize?: PortionSize, lineNote = "") =>
+  `${productId}:${portionSize ?? "DEFAULT"}:${encodeURIComponent(lineNote.trim())}`
 
 const getUnitPriceForPortion = (item: ProductResponseDto, portionSize?: PortionSize) => {
   if (!item.hasPortionPricing) return item.sellingPrice
-  if (!portionSize) return NaN
+  if (!portionSize) return item.sellingPrice
   const price = item.portionPrices?.[portionSize]
   return typeof price === "number" && Number.isFinite(price) ? price : item.sellingPrice
 }
 
+function billPortionLabelForCart(c: CartItem): string | undefined {
+  if (c.portionSize === "MEDIUM") return "Medium"
+  if (c.portionSize === "LARGE") return "Large"
+  if (c.hasPortionPricing) return "Small"
+  return undefined
+}
+
 const POS = () => {
   const [cart, setCart] = useState<CartItem[]>([])
-  const [selectedTable, setSelectedTable] = useState("5")
+  const [selectedTable, setSelectedTable] = useState("")
   const [menuItems, setMenuItems] = useState<ProductResponseDto[]>([])
   const [categories, setCategories] = useState<CategoryResponseDto[]>([])
   const [activeTab, setActiveTab] = useState("all")
@@ -127,9 +129,11 @@ const POS = () => {
   const [searchQuery, setSearchQuery] = useState("")
 
   const [orderType, setOrderType] = useState<OrderType>("TAKE_AWAY")
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH")
-  const [kitchenNote, setKitchenNote] = useState("")
   const [receiptOpen, setReceiptOpen] = useState(false)
+  const [lineNoteDialogOpen, setLineNoteDialogOpen] = useState(false)
+  const [pendingAdd, setPendingAdd] = useState<{ product: ProductResponseDto } | null>(null)
+  const [draftPortion, setDraftPortion] = useState<PortionSize | null>(null)
+  const [draftLineNote, setDraftLineNote] = useState("")
   const [lastReceipt, setLastReceipt] = useState<OrderBillsPayload | null>(null)
 
   const handleCategoryDragStart = (event: React.DragEvent<HTMLButtonElement>, categoryId: number) => {
@@ -180,44 +184,83 @@ const POS = () => {
     }
   }, [])
 
-  const addToCart = (item: ProductResponseDto, portionSize?: PortionSize) => {
-    // If item has portion pricing, user must pick a portion
-    if (item.hasPortionPricing && !portionSize) {
-      toast.error("Please select Medium or Large")
+  /**
+   * Opens one dialog: portion (Medium/Large) when needed, then kitchen note. Card tap only — no separate row buttons.
+   * Showcase items skip the dialog.
+   */
+  const beginAddToCart = (item: ProductResponseDto) => {
+    if (item.skipKitchenTicket === true) {
+      addToCartWithNote(item, undefined, "")
       return
     }
+    setPendingAdd({ product: item })
+    setDraftLineNote("")
+    setDraftPortion(null)
+    setLineNoteDialogOpen(true)
+  }
 
+  const addToCartWithNote = (item: ProductResponseDto, portionSize: PortionSize | undefined, lineNote: string) => {
     const unitPrice = getUnitPriceForPortion(item, portionSize)
     if (!Number.isFinite(unitPrice)) {
       toast.error("Invalid portion price")
       return
     }
 
-    const lineKey = cartKey(item.productId, portionSize)
-    const existing = cart.find((c) => c.lineKey === lineKey)
-
-    if (existing) {
-      setCart((prev) => prev.map((c) => (c.lineKey === lineKey ? { ...c, quantity: c.quantity + 1 } : c)))
-      return
+    const trimmed = lineNote.trim().slice(0, 500)
+    const lineKey = cartKey(item.productId, portionSize, trimmed)
+    const skipKitchenTicket = item.skipKitchenTicket === true
+    const newLine: CartItem = {
+      lineKey,
+      productId: item.productId,
+      name: item.name,
+      kitchen: item.kitchen === "KITCHEN_2" ? "KITCHEN_2" : "KITCHEN_1",
+      nameSinhala: item.nameSinhala ?? null,
+      unitPrice,
+      quantity: 1,
+      portionSize,
+      hasPortionPricing: item.hasPortionPricing ? true : undefined,
+      imageUrl: item.imageUrl,
+      description: item.description,
+      skipKitchenTicket,
+      lineNote: trimmed.length > 0 ? trimmed : undefined,
     }
 
-    const skipKitchenTicket = item.skipKitchenTicket === true
-    setCart((prev) => [
-      ...prev,
-      {
-        lineKey,
-        productId: item.productId,
-        name: item.name,
-        kitchen: item.kitchen === "KITCHEN_2" ? "KITCHEN_2" : "KITCHEN_1",
-        nameSinhala: item.nameSinhala ?? null,
-        unitPrice,
-        quantity: 1,
-        portionSize,
-        imageUrl: item.imageUrl,
-        description: item.description,
-        skipKitchenTicket,
-      },
-    ])
+    setCart((prev) => {
+      const existing = prev.find((c) => c.lineKey === lineKey)
+      if (existing) {
+        return prev.map((c) => (c.lineKey === lineKey ? { ...c, quantity: c.quantity + 1 } : c))
+      }
+      return [...prev, newLine]
+    })
+  }
+
+  const confirmLineNoteAndAdd = () => {
+    if (!pendingAdd) return
+    const portion =
+      pendingAdd.product.hasPortionPricing && draftPortion ? draftPortion : undefined
+    addToCartWithNote(pendingAdd.product, portion, draftLineNote)
+    setLineNoteDialogOpen(false)
+    setPendingAdd(null)
+    setDraftPortion(null)
+    setDraftLineNote("")
+  }
+
+  const cancelLineNoteDialog = () => {
+    setLineNoteDialogOpen(false)
+    setPendingAdd(null)
+    setDraftPortion(null)
+    setDraftLineNote("")
+  }
+
+  const skipLineNoteAndAdd = () => {
+    if (!pendingAdd) return
+    const portion =
+      pendingAdd.product.hasPortionPricing && draftPortion ? draftPortion : undefined
+    addToCartWithNote(pendingAdd.product, portion, "")
+    setLineNoteDialogOpen(false)
+    setPendingAdd(null)
+    setDraftPortion(null)
+    setDraftLineNote("")
   }
 
   const updateQuantity = (lineKey: string, change: number) => {
@@ -285,7 +328,7 @@ const POS = () => {
         totalAmount,
         taxAmount,
         discountAmount,
-        paymentMethod,
+        paymentMethod: "CASH",
         status,
         orderType,
         kitchen: orderKitchen,
@@ -349,16 +392,12 @@ const POS = () => {
     if (!order) return
 
     const tableLabel = String(selectedTable)
-    const tickets = buildKitchenTickets(cart, order.orderId, tableLabel, orderType, {
-      KITCHEN_1: kitchenNote,
-      KITCHEN_2: kitchenNote,
-    })
-    printKitchenTicketsOnly(tickets, new Date())
+    const tickets = buildKitchenTickets(cart, order.orderId, tableLabel, orderType)
+    printKitchenTicketsForStationsSequentially(tickets, new Date())
     toast.success(
-      `Order #${order.orderId} sent to kitchen (pending). Mark as Paid on Orders to print the customer bill.`,
+      `Order #${order.orderId} sent to kitchen. One print dialog per station (Kitchen 1 / 2) — choose each kitchen printer. Then Orders → Print customer bill → Mark as Paid.`,
     )
     setCart([])
-    setKitchenNote("")
   }
 
   const handleCheckout = async () => {
@@ -366,24 +405,17 @@ const POS = () => {
     if (!order) return
 
     const tableLabel = orderType === "DINE_IN" ? String(selectedTable) : "—"
-    const portionLabel = (p?: PortionSize) =>
-      p === "MEDIUM" ? "Medium" : p === "LARGE" ? "Large" : undefined
 
     const lines = cart.map((c) => ({
       name: c.name,
       qty: c.quantity,
       unitPrice: c.unitPrice,
       lineTotal: Number((c.unitPrice * c.quantity).toFixed(2)),
-      portion: portionLabel(c.portionSize),
+      portion: billPortionLabelForCart(c),
     }))
 
     const kitchenTickets: KitchenTicketPayload[] =
-      orderType === "DINE_IN"
-        ? []
-        : buildKitchenTickets(cart, order.orderId, tableLabel, orderType, {
-            KITCHEN_1: kitchenNote,
-            KITCHEN_2: kitchenNote,
-          })
+      orderType === "DINE_IN" ? [] : buildKitchenTickets(cart, order.orderId, tableLabel, orderType)
 
     setLastReceipt({
       customer: {
@@ -393,7 +425,7 @@ const POS = () => {
         taxAmount,
         total: totalAmount,
         tableLabel,
-        paymentLabel: paymentLabels[paymentMethod],
+        paymentLabel: "",
         orderTypeLabel: orderTypeLabels[orderType],
       },
       kitchenTickets,
@@ -402,7 +434,6 @@ const POS = () => {
 
     toast.success(`Order ${order.orderId} placed! Total: ${formatCurrency(totalAmount)}`)
     setCart([])
-    setKitchenNote("")
   }
 
   const renderItemsGrid = (items: ProductResponseDto[]) => (
@@ -411,16 +442,12 @@ const POS = () => {
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         {items.map((item) => {
           const hasImage = Boolean(item.imageUrl)
-          const isPortion = !!item.hasPortionPricing
 
           return (
             <Card
               key={item.productId}
               className="cursor-pointer modern-card group border-0 shadow-modern hover:shadow-modern-lg transition-all duration-300"
-              onClick={() => {
-                // Only add directly if not portion-priced
-                if (!isPortion) addToCart(item)
-              }}
+              onClick={() => beginAddToCart(item)}
             >
               <CardContent className="p-4">
                 <div className="relative aspect-square rounded-xl mb-4 overflow-hidden group-hover:scale-105 transition-transform duration-300">
@@ -456,51 +483,7 @@ const POS = () => {
                   </p>
                 )}
 
-                {!isPortion ? (
-                  <p className="mt-2 text-accent font-bold text-lg">{formatCurrency(item.sellingPrice)}</p>
-                ) : (
-                  <div className="mt-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-medium text-muted-foreground">Choose portion</span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full border bg-muted/40 text-muted-foreground">
-                        Tap to add
-                      </span>
-                    </div>
-
-                    {/* vertical buttons to avoid overlap */}
-                    <div className="flex flex-col gap-2 rounded-xl border border-muted/60 bg-muted/20 p-2">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className="group h-11 w-full rounded-lg border border-muted/70 bg-background/70 hover:bg-primary/5 hover:border-primary/30 hover:text-primary transition-all justify-between px-3"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          addToCart(item, "MEDIUM")
-                        }}
-                      >
-                        <span className="text-sm font-semibold">Medium</span>
-                        <span className="text-xs font-bold px-2 py-1 rounded-md bg-muted/60 group-hover:bg-primary/10">
-                          {formatCurrency(item.portionPrices?.MEDIUM ?? item.sellingPrice)}
-                        </span>
-                      </Button>
-
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className="group h-11 w-full rounded-lg border border-muted/70 bg-background/70 hover:bg-primary/5 hover:border-primary/30 hover:text-primary transition-all justify-between px-3"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          addToCart(item, "LARGE")
-                        }}
-                      >
-                        <span className="text-sm font-semibold">Large</span>
-                        <span className="text-xs font-bold px-2 py-1 rounded-md bg-muted/60 group-hover:bg-primary/10">
-                          {formatCurrency(item.portionPrices?.LARGE ?? item.sellingPrice)}
-                        </span>
-                      </Button>
-                    </div>
-                  </div>
-                )}
+                <p className="mt-2 text-accent font-bold text-lg">{formatCurrency(item.sellingPrice)}</p>
 
                 <div className="mt-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                   <div className="w-full h-1 bg-gradient-to-r from-primary to-accent rounded-full"></div>
@@ -517,6 +500,95 @@ const POS = () => {
     <DashboardLayout>
       <SinhalaReceiptDialog open={receiptOpen} onOpenChange={setReceiptOpen} payload={lastReceipt} />
 
+      <Dialog
+        open={lineNoteDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) cancelLineNoteDialog()
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add to cart</DialogTitle>
+          </DialogHeader>
+          {pendingAdd ? (
+            <div className="grid gap-4 py-1">
+              <p className="text-sm font-medium">{pendingAdd.product.name}</p>
+              <p className="text-xs text-muted-foreground">
+                Station:{" "}
+                <span className="font-medium text-foreground">
+                  {pendingAdd.product.kitchen === "KITCHEN_2" ? "Kitchen 2" : "Kitchen 1"}
+                </span>
+                . Kitchen note prints only on that station’s KOT.
+              </p>
+
+              {pendingAdd.product.hasPortionPricing ? (
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium text-muted-foreground">
+                    Portion size (optional — default Small)
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      variant={draftPortion === "MEDIUM" ? "default" : "outline"}
+                      className="h-auto min-h-11 flex-col gap-0.5 py-2"
+                      onClick={() => setDraftPortion("MEDIUM")}
+                    >
+                      <span className="text-sm font-semibold">Medium</span>
+                      <span className="text-xs font-mono opacity-90">
+                        {formatCurrency(pendingAdd.product.portionPrices?.MEDIUM ?? pendingAdd.product.sellingPrice)}
+                      </span>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={draftPortion === "LARGE" ? "default" : "outline"}
+                      className="h-auto min-h-11 flex-col gap-0.5 py-2"
+                      onClick={() => setDraftPortion("LARGE")}
+                    >
+                      <span className="text-sm font-semibold">Large</span>
+                      <span className="text-xs font-mono opacity-90">
+                        {formatCurrency(pendingAdd.product.portionPrices?.LARGE ?? pendingAdd.product.sellingPrice)}
+                      </span>
+                    </Button>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    If you skip Medium/Large, this line is added at the Small price (
+                    {formatCurrency(pendingAdd.product.sellingPrice)}).
+                  </p>
+                </div>
+              ) : null}
+
+              <div className="grid gap-2">
+                <label className="text-sm font-medium text-muted-foreground">Kitchen instructions (optional)</label>
+                <Textarea
+                  value={draftLineNote}
+                  onChange={(e) => setDraftLineNote(e.target.value)}
+                  placeholder="e.g. No onions, less oil, extra gravy…"
+                  rows={3}
+                  className="rounded-xl border-2 text-sm resize-y min-h-[4rem]"
+                  maxLength={500}
+                />
+              </div>
+            </div>
+          ) : null}
+          <DialogFooter className="gap-2 sm:gap-0 flex-col sm:flex-row">
+            <Button type="button" variant="outline" onClick={cancelLineNoteDialog}>
+              Cancel
+            </Button>
+            <Button type="button" variant="secondary" onClick={skipLineNoteAndAdd}>
+              Skip note
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                confirmLineNoteAndAdd()
+              }}
+            >
+              Add to cart
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div className="h-screen flex flex-col bg-gradient-to-br from-background to-muted/20">
         <div className="p-4 pb-3">
           <div className="flex items-center justify-between">
@@ -527,9 +599,15 @@ const POS = () => {
               <p className="text-muted-foreground mt-1 text-base">Process orders and payments with ease</p>
             </div>
             <div className="flex items-center gap-4">
-              <div className="px-4 py-2 bg-accent/10 rounded-full border border-accent/20">
-                <span className="text-accent font-semibold text-sm">Table {selectedTable}</span>
-              </div>
+              {orderType === "DINE_IN" && selectedTable.trim() !== "" ? (
+                <div className="px-4 py-2 bg-accent/10 rounded-full border border-accent/20">
+                  <span className="text-accent font-semibold text-sm">Table {selectedTable.trim()}</span>
+                </div>
+              ) : orderType !== "DINE_IN" ? (
+                <div className="px-4 py-2 bg-muted/40 rounded-full border border-border/60">
+                  <span className="text-muted-foreground font-semibold text-sm">{orderTypeLabels[orderType]}</span>
+                </div>
+              ) : null}
               <div className="w-3 h-3 bg-accent rounded-full animate-pulse"></div>
             </div>
           </div>
@@ -634,25 +712,11 @@ const POS = () => {
                       </select>
                     </div>
 
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground mb-1 block">Payment</label>
-                      <select
-                        value={paymentMethod}
-                        onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-                        className="flex h-10 w-full rounded-xl border-2 border-input bg-background px-3 py-2 text-sm ring-offset-background"
-                      >
-                        <option value="CASH">Cash</option>
-                        <option value="CARD">Card</option>
-                        <option value="BANK_TRANSFER">Bank Transfer</option>
-                        <option value="CASH_ON_DELIVERY">Cash on Delivery</option>
-                      </select>
-                    </div>
-
                     <p className="text-xs text-muted-foreground rounded-lg border border-muted/60 bg-muted/20 px-3 py-2">
                       Each item’s kitchen is set in{" "}
-                      <span className="font-medium text-foreground">Menu Items</span>. The customer bill lists the full
-                      order; print then adds separate KOTs for Kitchen 1 and/or Kitchen 2 only when those stations have
-                      items.
+                      <span className="font-medium text-foreground">Menu Items</span>. When you add an item, you can
+                      enter an optional <span className="font-medium text-foreground">kitchen note</span> — it prints only
+                      on that item’s station KOT (Kitchen 1 or 2), not on the customer bill.
                     </p>
 
                     <div>
@@ -668,18 +732,6 @@ const POS = () => {
                       />
                     </div>
 
-                    <div className="space-y-1">
-                      <label className="text-sm font-medium text-muted-foreground block">
-                        Kitchen note (KOT only — not on customer bill)
-                      </label>
-                      <Textarea
-                        value={kitchenNote}
-                        onChange={(e) => setKitchenNote(e.target.value)}
-                        placeholder="Printed on each kitchen ticket that applies (කුස්සිය 1 / 2) for this order"
-                        rows={2}
-                        className="rounded-xl border-2 focus:border-primary transition-colors duration-200 text-xs resize-y min-h-[2.5rem]"
-                      />
-                    </div>
                   </div>
                 </CardHeader>
 
@@ -704,11 +756,25 @@ const POS = () => {
                               <div className="flex items-start justify-between gap-2">
                                 <div className="flex-1 min-w-0">
                                   <p className="font-semibold text-sm leading-tight">{item.name}</p>
+                                  {item.hasPortionPricing ? (
+                                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                                      {item.portionSize === "MEDIUM"
+                                        ? "Medium"
+                                        : item.portionSize === "LARGE"
+                                          ? "Large"
+                                          : "Small"}
+                                    </p>
+                                  ) : null}
                                   <p className="text-[10px] font-mono text-muted-foreground mt-0.5">
                                     {formatItemCode(item.productId)}
                                   </p>
                                   {item.skipKitchenTicket ? (
                                     <p className="text-[10px] text-muted-foreground mt-0.5">Showcase — bill only (no KOT)</p>
+                                  ) : null}
+                                  {item.lineNote ? (
+                                    <p className="text-[10px] text-amber-900 dark:text-amber-100 mt-1 rounded border border-amber-200/80 dark:border-amber-800 bg-amber-50/90 dark:bg-amber-950/40 px-2 py-1">
+                                      <span className="font-semibold">KOT:</span> {item.lineNote}
+                                    </p>
                                   ) : null}
                                   <p className="text-xs text-accent font-medium mt-1">
                                     {formatCurrency(item.unitPrice)} each
@@ -764,25 +830,23 @@ const POS = () => {
 
                     {orderType === "DINE_IN" ? (
                       <div className="flex flex-col gap-2 mt-2">
+                        <p className="text-xs text-muted-foreground leading-snug rounded-lg border border-border/60 bg-muted/30 px-3 py-2">
+                          <span className="font-medium text-foreground">Flow:</span>{" "}
+                          <span className="font-medium text-foreground">Send to kitchen</span> prints{" "}
+                          <span className="font-medium text-foreground">KOT only</span>. Then open{" "}
+                          <span className="font-medium text-foreground">Orders</span> and use{" "}
+                          <span className="font-medium text-foreground">Print customer bill</span> for the guest. After
+                          they pay, use <span className="font-medium text-foreground">Mark as Paid</span>.
+                        </p>
                         <Button
                           type="button"
-                          variant="outline"
-                          className="w-full h-10 text-base font-semibold rounded-lg"
+                          className="w-full h-10 text-base font-bold rounded-lg modern-button gradient-primary hover:shadow-modern-lg disabled:opacity-50 disabled:cursor-not-allowed"
                           size="lg"
                           disabled={cart.length === 0}
                           onClick={() => void handleSendToKitchen()}
                         >
                           <ChefHat className="mr-3 h-5 w-5" />
                           Send to kitchen (KOT)
-                        </Button>
-                        <Button
-                          className="w-full h-10 text-base font-bold rounded-lg modern-button gradient-primary hover:shadow-modern-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                          size="lg"
-                          disabled={cart.length === 0}
-                          onClick={() => void handleCheckout()}
-                        >
-                          <CreditCard className="mr-3 h-5 w-5" />
-                          Pay &amp; print bill
                         </Button>
                       </div>
                     ) : (
@@ -793,7 +857,7 @@ const POS = () => {
                         onClick={() => void handleCheckout()}
                       >
                         <CreditCard className="mr-3 h-5 w-5" />
-                        Process Payment
+                        Complete order
                       </Button>
                     )}
                   </div>

@@ -1,0 +1,14 @@
+{
+  "name": "pos-print-agent",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "pdf-to-printer": "^5.7.0",
+    "puppeteer": "^23.11.1"
+  }
+}
