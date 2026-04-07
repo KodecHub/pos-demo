@@ -17,9 +17,9 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   }, [location.pathname]);
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex h-svh min-h-0 w-full overflow-hidden bg-background">
       <Sidebar />
-      <main className="flex-1 overflow-hidden">
+      <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
         {children}
       </main>
     </div>

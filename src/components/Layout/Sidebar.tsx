@@ -44,7 +44,7 @@ export const Sidebar = () => {
   const location = useLocation();
 
   return (
-    <aside className="w-72 bg-sidebar text-sidebar-foreground flex flex-col shadow-modern-lg border-r border-sidebar-border">
+    <aside className="flex h-full w-72 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground shadow-modern-lg">
       {/* Admin Profile Header */}
       <div className="p-8 border-b border-sidebar-border">
         <div className="flex flex-col items-center text-center gap-4">
