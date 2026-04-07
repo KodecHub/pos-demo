@@ -27,12 +27,12 @@ const CRM = () => {
   }, [isEnabled]);
 
   const [customers, setCustomers] = useState([
-    { id: "C001", name: "John Smith", email: "john.smith@email.com", phone: "+94-77-123-4567", visits: 24, totalSpent: 185000.00, lastVisit: "2025-10-14", tier: "Gold" },
-    { id: "C002", name: "Sarah Johnson", email: "sarah.j@email.com", phone: "+94-77-234-5678", visits: 18, totalSpent: 142500.00, lastVisit: "2025-10-15", tier: "Gold" },
-    { id: "C003", name: "Mike Wilson", email: "mike.w@email.com", phone: "+94-77-345-6789", visits: 12, totalSpent: 89500.00, lastVisit: "2025-10-13", tier: "Silver" },
-    { id: "C004", name: "Emily Davis", email: "emily.d@email.com", phone: "+94-77-456-7890", visits: 8, totalSpent: 62500.00, lastVisit: "2025-10-12", tier: "Silver" },
-    { id: "C005", name: "David Brown", email: "david.b@email.com", phone: "+94-77-567-8901", visits: 5, totalSpent: 38500.00, lastVisit: "2025-10-10", tier: "Bronze" },
-    { id: "C006", name: "Lisa Anderson", email: "lisa.a@email.com", phone: "+94-77-678-9012", visits: 3, totalSpent: 21500.00, lastVisit: "2025-10-08", tier: "Bronze" },
+    { id: "C001", name: "Nimal Perera", email: "nimal.perera@gmail.com", phone: "+94 77 123 4567", visits: 24, totalSpent: 185000.0, lastVisit: "2026-04-06", tier: "Gold" },
+    { id: "C002", name: "Kamalini Fernando", email: "kamalini.f@gmail.com", phone: "+94 71 234 5678", visits: 18, totalSpent: 142500.0, lastVisit: "2026-04-07", tier: "Gold" },
+    { id: "C003", name: "Ruwan Silva", email: "ruwan.silva@yahoo.com", phone: "+94 76 345 6789", visits: 12, totalSpent: 89500.0, lastVisit: "2026-04-05", tier: "Silver" },
+    { id: "C004", name: "Dilani Jayawardena", email: "dilani.j@outlook.com", phone: "+94 77 456 7890", visits: 8, totalSpent: 62500.0, lastVisit: "2026-04-04", tier: "Silver" },
+    { id: "C005", name: "Samantha Wickramasinghe", email: "sam.w@hotmail.com", phone: "+94 70 567 8901", visits: 5, totalSpent: 38500.0, lastVisit: "2026-04-03", tier: "Bronze" },
+    { id: "C006", name: "Tharindu De Silva", email: "tharindu.ds@gmail.com", phone: "+94 78 678 9012", visits: 3, totalSpent: 21500.0, lastVisit: "2026-04-02", tier: "Bronze" },
   ]);
 
   const [newCustomer, setNewCustomer] = useState({
@@ -58,22 +58,22 @@ const CRM = () => {
   };
 
   const loyaltyPrograms = [
-    { tier: "Gold", customers: 28, benefits: "20% discount, Priority seating, Free desserts", minSpend: 150000 },
-    { tier: "Silver", customers: 54, benefits: "15% discount, Birthday rewards", minSpend: 75000 },
-    { tier: "Bronze", customers: 123, benefits: "10% discount, Points on purchases", minSpend: 25000 },
+    { tier: "Gold", customers: 28, benefits: "20% off, priority seating, free dessert on Avurudu", minSpend: 150000 },
+    { tier: "Silver", customers: 54, benefits: "15% off, birthday treat, Vesak weekend bonus", minSpend: 75000 },
+    { tier: "Bronze", customers: 123, benefits: "10% off, points on every order, SMS alerts", minSpend: 25000 },
   ];
 
   const recentFeedback = [
-    { customer: "John Smith", rating: 5, date: "2025-10-14", comment: "Excellent service and amazing food!" },
-    { customer: "Sarah Johnson", rating: 5, date: "2025-10-15", comment: "Best Italian restaurant in town!" },
-    { customer: "Mike Wilson", rating: 4, date: "2025-10-13", comment: "Great atmosphere, but wait time was a bit long" },
-    { customer: "Emily Davis", rating: 5, date: "2025-10-12", comment: "Love the new menu items!" },
+    { customer: "Nimal Perera", rating: 5, date: "2026-04-06", comment: "හොඳ සේවයක්, කෑම රසයි! ආපහු එනවා." },
+    { customer: "Kamalini Fernando", rating: 5, date: "2026-04-07", comment: "Best kottu in Colombo — staff was friendly." },
+    { customer: "Ruwan Silva", rating: 4, date: "2026-04-05", comment: "Rice & curry set was great; parking was tight." },
+    { customer: "Dilani Jayawardena", rating: 5, date: "2026-04-04", comment: "Love the new menu — especially the devilled prawns!" },
   ];
 
   const campaigns = [
-    { name: "Weekend Brunch Special", type: "Email", sent: 450, opened: 298, clicked: 145, status: "active" },
-    { name: "Loyalty Program Launch", type: "SMS", sent: 205, opened: 198, clicked: 89, status: "completed" },
-    { name: "New Menu Announcement", type: "Email", sent: 520, opened: 312, clicked: 178, status: "active" },
+    { name: "Avurudu Family Feast Promo", type: "Email", sent: 450, opened: 298, clicked: 145, status: "active" },
+    { name: "Colombo Weekend SMS – 20% off", type: "SMS", sent: 205, opened: 198, clicked: 89, status: "completed" },
+    { name: "New Menu – Kandy & Galle branches", type: "Email", sent: 520, opened: 312, clicked: 178, status: "active" },
   ];
 
   return (

@@ -25,6 +25,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { generatePDF, generateCustomerInvoicePdf } from "@/lib/pdfUtils";
+import { ReportPdfShell } from "@/components/reports/ReportPdfShell";
 import { StatCard } from "@/components/Dashboard/StatCard";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/utils";
 import { toast } from "sonner";
@@ -181,9 +182,11 @@ const Accounting = () => {
 
   const handleExportReport = async () => {
     try {
-      await generatePDF('accounting-content', 'accounting-report.pdf')
+      await generatePDF("accounting-content", "RestaurantOS-accounting-report.pdf", { marginMm: 12 })
+      toast.success("PDF downloaded.")
     } catch (error) {
-      console.error('Error exporting report:', error)
+      console.error("Error exporting report:", error)
+      toast.error("Could not export PDF.")
     }
   };
 
@@ -217,7 +220,7 @@ const Accounting = () => {
             </Button>
             <Dialog>
               <DialogTrigger asChild>
-                <Button>
+                <Button className="pdf-hide">
                   <Plus className="w-4 h-4 mr-2" />
                   New Transaction
                 </Button>
@@ -296,36 +299,42 @@ const Accounting = () => {
           </div>
         </div>
 
-        <div id="accounting-content" className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <StatCard
-            title="Total Revenue"
-            value={formatCurrencyCompact(ledgerIncome)}
-            change="From ledger"
-            icon={DollarSign}
-            trend="up"
-          />
-          <StatCard
-            title="Total Expenses"
-            value={formatCurrencyCompact(ledgerExpenseAbs)}
-            change="From ledger"
-            icon={TrendingDown}
-            trend="down"
-          />
-          <StatCard
-            title="Net Profit"
-            value={formatCurrencyCompact(ledgerNet)}
-            change="Income − expenses"
-            icon={TrendingUp}
-            trend={ledgerNet >= 0 ? "up" : "down"}
-          />
-          <StatCard
-            title="Profit Margin"
-            value={`${profitMarginPct.toFixed(1)}%`}
-            change="On ledger income"
-            icon={ArrowUpRight}
-            trend={profitMarginPct >= 0 ? "up" : "down"}
-          />
-        </div>
+        <div id="accounting-content" className="max-w-6xl">
+          <ReportPdfShell
+            title="Financial summary report"
+            subtitle="Ledger totals, recent activity, customer invoices, and vendor payables (demo)."
+            footer="Demo data stored locally. Create-invoice controls and row actions are omitted from the PDF capture."
+          >
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+              <StatCard
+                title="Total Revenue"
+                value={formatCurrencyCompact(ledgerIncome)}
+                change="From ledger"
+                icon={DollarSign}
+                trend="up"
+              />
+              <StatCard
+                title="Total Expenses"
+                value={formatCurrencyCompact(ledgerExpenseAbs)}
+                change="From ledger"
+                icon={TrendingDown}
+                trend="down"
+              />
+              <StatCard
+                title="Net Profit"
+                value={formatCurrencyCompact(ledgerNet)}
+                change="Income − expenses"
+                icon={TrendingUp}
+                trend={ledgerNet >= 0 ? "up" : "down"}
+              />
+              <StatCard
+                title="Profit Margin"
+                value={`${profitMarginPct.toFixed(1)}%`}
+                change="On ledger income"
+                icon={ArrowUpRight}
+                trend={profitMarginPct >= 0 ? "up" : "down"}
+              />
+            </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
           <Card className="lg:col-span-2">
@@ -403,7 +412,7 @@ const Accounting = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="grid gap-4 max-w-3xl">
+            <div className="grid gap-4 max-w-3xl pdf-hide">
               <div className="grid gap-2">
                 <Label htmlFor="ci-name">Customer name</Label>
                 <Input
@@ -492,7 +501,7 @@ const Accounting = () => {
                   <TableHead className="text-right">Total</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Date</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="text-right pdf-hide">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -516,7 +525,7 @@ const Accounting = () => {
                       <TableCell className="text-xs whitespace-nowrap">
                         {new Date(inv.createdAt).toLocaleString()}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right pdf-hide">
                         <div className="flex flex-wrap justify-end gap-1">
                           <Button type="button" size="sm" variant="outline" onClick={() => handleDownloadInvoice(inv)}>
                             PDF
@@ -560,7 +569,7 @@ const Accounting = () => {
                   <TableHead>Amount</TableHead>
                   <TableHead>Due Date</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead className="pdf-hide">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -575,7 +584,7 @@ const Accounting = () => {
                         {invoice.status}
                       </Badge>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="pdf-hide">
                       <Button size="sm" variant="outline">Pay Now</Button>
                     </TableCell>
                   </TableRow>
@@ -584,6 +593,8 @@ const Accounting = () => {
             </Table>
           </CardContent>
         </Card>
+          </ReportPdfShell>
+        </div>
       </div>
     </DashboardLayout>
   );

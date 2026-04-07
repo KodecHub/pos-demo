@@ -30,7 +30,6 @@ import {
   Globe,
   Save,
   Upload,
-  Download,
   LogOut,
   Printer,
 } from "lucide-react"
@@ -73,10 +72,6 @@ const Settings = () => {
               >
                 <LogOut className="w-4 h-4 mr-2" />
                 Logout
-              </Button>
-              <Button variant="outline" className="modern-button">
-                <Download className="w-4 h-4 mr-2" />
-                Export
               </Button>
               <Button className="modern-button gradient-primary">
                 <Save className="w-4 h-4 mr-2" />

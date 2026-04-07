@@ -9,6 +9,10 @@ export type GeneratePdfOptions = {
    * html2canvas can capture an empty or wrong frame unless the clone is moved on-screen in the clone document.
    */
   fixOffscreenClone?: boolean
+  /** Side margins on A4 (mm). Default 10. */
+  marginMm?: number
+  /** Hide elements with class `pdf-hide` in the clone (buttons, toolbars). Default true. */
+  hideChromeInClone?: boolean
 }
 
 export const generatePDF = async (
@@ -21,6 +25,9 @@ export const generatePDF = async (
     throw new Error(`Element with id "${elementId}" not found`)
   }
 
+  const marginMm = options?.marginMm ?? 10
+  const hideChrome = options?.hideChromeInClone !== false
+
   try {
     const canvas = await html2canvas(element, {
       scale: 2,
@@ -29,6 +36,13 @@ export const generatePDF = async (
       backgroundColor: '#ffffff',
       logging: false,
       onclone: (_clonedDoc, clonedElement) => {
+        if (clonedElement instanceof HTMLElement) {
+          if (hideChrome) {
+            clonedElement.querySelectorAll('.pdf-hide').forEach((el) => {
+              ;(el as HTMLElement).style.setProperty('display', 'none', 'important')
+            })
+          }
+        }
         if (!options?.fixOffscreenClone || !(clonedElement instanceof HTMLElement)) return
         clonedElement.style.position = 'relative'
         clonedElement.style.left = '0'
@@ -40,22 +54,22 @@ export const generatePDF = async (
 
     const imgData = canvas.toDataURL('image/png')
     const pdf = new jsPDF('p', 'mm', 'a4')
-    
-    const imgWidth = 210
-    const pageHeight = 295
+
+    const pageW = 210
+    const pageH = 295
+    const imgWidth = pageW - marginMm * 2
     const imgHeight = (canvas.height * imgWidth) / canvas.width
     let heightLeft = imgHeight
-
     let position = 0
 
-    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
-    heightLeft -= pageHeight
+    pdf.addImage(imgData, 'PNG', marginMm, position, imgWidth, imgHeight)
+    heightLeft -= pageH
 
-    while (heightLeft >= 0) {
+    while (heightLeft > 0) {
       position = heightLeft - imgHeight
       pdf.addPage()
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
-      heightLeft -= pageHeight
+      pdf.addImage(imgData, 'PNG', marginMm, position, imgWidth, imgHeight)
+      heightLeft -= pageH
     }
 
     pdf.save(filename)

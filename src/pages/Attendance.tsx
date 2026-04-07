@@ -7,6 +7,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Download, FileDown } from "lucide-react";
 import { generatePDF, generateSalarySlipPdf } from "@/lib/pdfUtils";
+import { ReportPdfShell } from "@/components/reports/ReportPdfShell";
+import { toast } from "sonner";
 import { StatCard } from "@/components/Dashboard/StatCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -109,9 +111,11 @@ const Attendance = () => {
 
   const handleExportReport = async () => {
     try {
-      await generatePDF("attendance-content", "attendance-report.pdf");
+      await generatePDF("attendance-content", "RestaurantOS-attendance-report.pdf", { marginMm: 12 });
+      toast.success("PDF downloaded.");
     } catch (error) {
       console.error("Error exporting report:", error);
+      toast.error("Could not export PDF.");
     }
   };
 
@@ -132,13 +136,19 @@ const Attendance = () => {
           </Button>
         </div>
 
-        <div id="attendance-content" className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <StatCard title="Present (selected day)" value={String(presentToday)} change="—" icon={Calendar} trend="up" />
-          <StatCard title="Leave (selected day)" value={String(leaveToday)} change="—" icon={Calendar} trend="down" />
-          <StatCard title="Employees" value={String(employees.length)} change="—" icon={Calendar} trend="up" />
-        </div>
+        <div id="attendance-content" className="max-w-5xl">
+          <ReportPdfShell
+            title="Attendance & payroll report"
+            subtitle={`Selected date: ${selectedDate} · Payroll month: ${payrollMonth} · Paid leave cap: ${PAID_LEAVE_DAYS_PER_MONTH} days/month`}
+            footer="Demo data stored locally. Switch tabs before export to include daily marking or payroll table in the capture."
+          >
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <StatCard title="Present (selected day)" value={String(presentToday)} change="—" icon={Calendar} trend="up" />
+              <StatCard title="Leave (selected day)" value={String(leaveToday)} change="—" icon={Calendar} trend="down" />
+              <StatCard title="Employees" value={String(employees.length)} change="—" icon={Calendar} trend="up" />
+            </div>
 
-        <Tabs defaultValue="daily" className="space-y-6">
+            <Tabs defaultValue="daily" className="space-y-6">
           <TabsList>
             <TabsTrigger value="daily">Daily marking</TabsTrigger>
             <TabsTrigger value="payroll">Monthly payroll (demo)</TabsTrigger>
@@ -242,7 +252,7 @@ const Attendance = () => {
                             type="button"
                             variant="outline"
                             size="sm"
-                            className="gap-1"
+                            className="gap-1 pdf-hide"
                             onClick={() => downloadSlip(row)}
                           >
                             <FileDown className="h-3.5 w-3.5" />
@@ -258,6 +268,8 @@ const Attendance = () => {
             </Card>
           </TabsContent>
         </Tabs>
+          </ReportPdfShell>
+        </div>
       </div>
     </DashboardLayout>
   );
