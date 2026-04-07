@@ -271,21 +271,22 @@ function buildPrintDocumentHtmlCustomerOnly(customerHtml: string): string {
       .c-brand { text-align: center; }
       .c-brand-name { font-weight: 800; font-size: 14px; letter-spacing: 0.2px; margin: 0; }
       .c-brand-sub { font-size: 10px; color: #666; margin-top: 2px; }
-      .c-rule { height: 1px; background: #e9e9e9; margin: 8px 0; }
-      .c-rule.dotted { background: none; border-top: 1px dashed #8c8c8c; height: 0; margin: 10px 0 8px; }
-      .meta { font-size: 10px; }
+      /* Center the header blocks like the KOT look */
+      .c-rule { height: 1px; background: #e9e9e9; margin: 8px auto; max-width: 66mm; }
+      .c-rule.dotted { background: none; border-top: 1px dashed #8c8c8c; height: 0; margin: 10px auto 8px; max-width: 66mm; }
+      .meta { font-size: 10px; max-width: 66mm; margin: 0 auto; }
       .meta-row { display: flex; justify-content: space-between; gap: 8px; padding: 1px 0; }
       .meta-k { color: #555; }
       .meta-v { text-align: right; font-weight: 600; }
       .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace; }
-      .customer-print-section table { width: 100%; border-collapse: collapse; font-size: 10px; margin-top: 10px; }
+      .customer-print-section table { width: 100%; border-collapse: collapse; font-size: 10px; margin: 10px auto 0; }
       .customer-print-section thead th { font-weight: 700; color: #333; padding: 6px 0 5px; border-bottom: 1px solid #dcdcdc; }
       .customer-print-section tbody td { padding: 7px 0; border-bottom: 1px solid #efefef; vertical-align: top; }
       .c-item { padding-right: 6px; }
       .c-qty { width: 2.5rem; text-align: center; font-weight: 700; }
       .c-money { text-align: right; white-space: nowrap; }
       .c-strong { font-weight: 800; }
-      .totals { margin-top: 10px; padding-top: 8px; border-top: 1px solid #dcdcdc; font-size: 11px; }
+      .totals { margin: 10px auto 0; padding-top: 8px; border-top: 1px solid #dcdcdc; font-size: 11px; max-width: 66mm; }
       .total-row { display: flex; justify-content: space-between; padding: 2px 0; color: #333; }
       .grand-row { display: flex; justify-content: space-between; padding-top: 6px; font-size: 14px; font-weight: 900; }
       .c-footer { text-align: center; font-size: 10px; color: #666; margin: 0; }

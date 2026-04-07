@@ -23,7 +23,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import {
   Settings as SettingsIcon,
@@ -45,24 +44,17 @@ import {
 
 const Settings = () => {
   const navigate = useNavigate()
-  const [isLoggingOut, setIsLoggingOut] = useState(false)
-  const [showLogoutDialog, setShowLogoutDialog] = useState(false)
   const [printCfg, setPrintCfg] = useState<PrintPrinterConfig>(() => loadPrintPrinterConfig())
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false)
 
-  const handleLogout = async () => {
-    setIsLoggingOut(true)
-    try {
-      localStorage.removeItem("isLoggedIn")
-      localStorage.removeItem("token")
-      localStorage.removeItem("user")
-      navigate("/pos", { replace: true })
-    } finally {
-      setIsLoggingOut(false)
-    }
+  const handleLogout = () => {
+    localStorage.removeItem("isLoggedIn")
+    localStorage.removeItem("token")
+    localStorage.removeItem("user")
+    navigate("/pos", { replace: true })
   }
 
   return (
-    <>
     <DashboardLayout>
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
         {/* Header */}
@@ -77,11 +69,10 @@ const Settings = () => {
             <div className="flex gap-2">
               <Button
                 onClick={() => setShowLogoutDialog(true)}
-                disabled={isLoggingOut}
                 className="modern-button bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white shadow-lg hover:shadow-red-500/25 border-0 transition-all duration-200"
               >
                 <LogOut className="w-4 h-4 mr-2" />
-                {isLoggingOut ? "Logging out…" : "Logout"}
+                Logout
               </Button>
               <Button variant="outline" className="modern-button">
                 <Download className="w-4 h-4 mr-2" />
@@ -91,30 +82,6 @@ const Settings = () => {
                 <Save className="w-4 h-4 mr-2" />
                 Save Changes
               </Button>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="outline" className="modern-button border-destructive text-destructive">
-                    Log out
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Log out</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Are you sure you want to log out from this device? You will need to sign in again to access the POS.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                      onClick={handleLogout}
-                    >
-                      Log out
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
             </div>
           </div>
         </div>
@@ -342,47 +309,45 @@ const Settings = () => {
           </Tabs>
         </div>
       </div>
-    </DashboardLayout>
 
-    {/* Logout Confirmation Dialog */}
-    <AlertDialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>
-      <AlertDialogContent className="max-w-sm rounded-3xl border border-border/50 shadow-2xl bg-background p-0 overflow-hidden">
-        {/* Top accent bar */}
-        <div className="h-1.5 w-full bg-gradient-to-r from-red-500 via-rose-500 to-red-600" />
+      {/* Logout Confirmation Dialog */}
+      <AlertDialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>
+        <AlertDialogContent className="max-w-sm rounded-3xl border border-border/50 shadow-2xl bg-background p-0 overflow-hidden">
+          <div className="h-1.5 w-full bg-gradient-to-r from-red-500 via-rose-500 to-red-600" />
 
-        <div className="p-7">
-          <AlertDialogHeader className="text-center items-center gap-0 mb-4">
-            {/* Icon circle */}
-            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-red-500/20 to-rose-600/20 flex items-center justify-center mb-5 ring-4 ring-red-500/10">
-              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-red-500 to-rose-600 flex items-center justify-center shadow-lg shadow-red-500/30">
-                <LogOut className="w-5 h-5 text-white" />
+          <div className="p-7">
+            <AlertDialogHeader className="text-center items-center gap-0 mb-4">
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-red-500/20 to-rose-600/20 flex items-center justify-center mb-5 ring-4 ring-red-500/10">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-red-500 to-rose-600 flex items-center justify-center shadow-lg shadow-red-500/30">
+                  <LogOut className="w-5 h-5 text-white" />
+                </div>
               </div>
-            </div>
-            <AlertDialogTitle className="text-2xl font-bold tracking-tight text-foreground">
-              Leaving DineMate?
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-center text-muted-foreground text-sm leading-relaxed mt-2">
-              Are you sure you want to logout?<br />
-              You'll need your credentials to sign back in.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
+              <AlertDialogTitle className="text-2xl font-bold tracking-tight text-foreground">
+                Leaving DineMate?
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-center text-muted-foreground text-sm leading-relaxed mt-2">
+                Are you sure you want to logout?
+                <br />
+                You'll need your credentials to sign back in.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
 
-          <AlertDialogFooter className="flex-col gap-3 mt-6 sm:flex-col">
-            <AlertDialogAction
-              onClick={handleLogout}
-              className="w-full h-11 rounded-xl bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white font-semibold border-0 shadow-lg shadow-red-500/25 hover:shadow-red-500/40 transition-all duration-200"
-            >
-              <LogOut className="w-4 h-4 mr-2" />
-              Yes, Logout
-            </AlertDialogAction>
-            <AlertDialogCancel className="w-full h-11 rounded-xl bg-muted text-foreground font-semibold border border-border hover:bg-muted/70 hover:text-foreground transition-all duration-200 mt-0">
-              No, Stay Here
-            </AlertDialogCancel>
-          </AlertDialogFooter>
-        </div>
-      </AlertDialogContent>
-    </AlertDialog>
-    </>
+            <AlertDialogFooter className="flex-col gap-3 mt-6 sm:flex-col">
+              <AlertDialogAction
+                onClick={handleLogout}
+                className="w-full h-11 rounded-xl bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white font-semibold border-0 shadow-lg shadow-red-500/25 hover:shadow-red-500/40 transition-all duration-200"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Yes, Logout
+              </AlertDialogAction>
+              <AlertDialogCancel className="w-full h-11 rounded-xl bg-muted text-foreground font-semibold border border-border hover:bg-muted/70 hover:text-foreground transition-all duration-200 mt-0">
+                No, Stay Here
+              </AlertDialogCancel>
+            </AlertDialogFooter>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
+    </DashboardLayout>
   )
 }
 

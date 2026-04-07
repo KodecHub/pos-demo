@@ -11,7 +11,7 @@ import {
   Settings,
   Store,
   UtensilsCrossed,
-  ClipboardList
+  ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { FeatureKey } from "@/config/features";
@@ -108,7 +108,7 @@ export const Sidebar = () => {
         </div>
       </nav>
 
-      {/* Footer spacer */}
+      {/* Footer */}
       <div className="p-6 border-t border-sidebar-border" />
     </aside>
   );
