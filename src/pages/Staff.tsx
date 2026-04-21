@@ -100,11 +100,19 @@ const Staff = () => {
   const handleDeleteLoan = async (loanId: number) => {
     if (!window.confirm('Delete this loan?')) return
     try {
+      // optimistic UI update
+      setLoans((prev) => prev.filter((x) => x.loanId !== loanId))
       await deleteLoan(loanId)
       toast.success('Loan deleted')
+      // ensure fresh data from server
       if (loanOpenFor?.empId) {
-        const list = await getLoansByEmployee(loanOpenFor.empId)
-        setLoans(list)
+        try {
+          const list = await getLoansByEmployee(loanOpenFor.empId)
+          setLoans(list)
+        } catch (err) {
+          // keep optimistic removal if refresh failed
+          console.error('Could not refresh loans after delete', err)
+        }
       }
     } catch (err) {
       console.error(err)
