@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
-const LOGIN_API = "/api/security/login"
+const LOGIN_API = "http://localhost:8080/api/security/login"
 
 const Login = () => {
   const navigate = useNavigate()
@@ -27,12 +27,11 @@ const Login = () => {
     setIsSubmitting(true)
 
     try {
-      const body = new URLSearchParams({ username, password })
       const response = await fetch(LOGIN_API, {
         method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body,
+        body: JSON.stringify({ username, password }),
       })
 
       if (!response.ok) {
