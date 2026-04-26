@@ -48,6 +48,12 @@ const statusHighlightClasses: Record<AttendanceStatus, string> = {
   ABSENT: "border-rose-300 bg-rose-50 text-rose-700",
 };
 
+const statusRowHighlightClasses: Record<AttendanceStatus, string> = {
+  PRESENT: "bg-emerald-50/40",
+  LEAVE: "bg-amber-50/40",
+  ABSENT: "bg-rose-50/40",
+};
+
 function daysAgoISO(days: number) {
   const d = new Date();
   d.setDate(d.getDate() - days);
@@ -306,7 +312,7 @@ const Attendance = () => {
                             const key = rowKey(empId, selectedDate);
                             const isSaving = Boolean(savingRows[key]);
                             return (
-                              <TableRow key={employeeRenderKey(emp, index, "daily") }>
+                              <TableRow key={employeeRenderKey(emp, index, "daily") } className={statusRowHighlightClasses[currentStatus]}>
                                 <TableCell className="font-medium">{emp.name}</TableCell>
                                 <TableCell>{emp.role}</TableCell>
                                 <TableCell className="text-right font-mono text-sm">{formatCurrency(emp.paymentPerDay)}</TableCell>
